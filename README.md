@@ -20,7 +20,7 @@ A tool to explore GitHub repositories with interactive React Flow diagrams and A
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/codeflow.git
+git clone https://github.com/akshatgoel07/react-graph/
 cd codeflow
 ```
 
