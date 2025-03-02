@@ -6,6 +6,11 @@ import {
   checkIndexStatus,
   indexRepository,
 } from "@/app/utils/api";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CheckCircle, AlertTriangle, RefreshCw } from "lucide-react";
 
 export default function IndexingStatus({
   selectedRepo,
@@ -53,40 +58,59 @@ export default function IndexingStatus({
   };
 
   return (
-    <div className="p-4 flex justify-between items-center">
-      <div>
-        <h2 className="text-xl">
+    <Card className="border-none shadow-none">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-xl font-semibold flex items-center gap-2">
           {selectedRepo.full_name} - Architecture Diagram
-        </h2>
-        <div className="mt-2 text-sm">
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-2 text-sm">
           {isRepoIndexed ? (
-            <span className="text-green-600">
-              ✓ Repository indexed ({indexedChunks} code chunks)
-            </span>
+            <Badge
+              variant="outline"
+              className="bg-green-50 text-green-600 flex items-center gap-1 py-1"
+            >
+              <CheckCircle className="h-4 w-4" />
+              Repository indexed ({indexedChunks} code chunks)
+            </Badge>
           ) : (
-            <span className="text-amber-600">
-              ⚠ Repository not indexed (answers may be limited)
-            </span>
+            <Badge
+              variant="outline"
+              className="bg-amber-50 text-amber-600 flex items-center gap-1 py-1"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              Repository not indexed (answers may be limited)
+            </Badge>
           )}
+
           {!isRepoIndexed && !isIndexing && (
-            <button
+            <Button
+              variant="default"
+              size="sm"
               onClick={handleIndex}
-              className="ml-2 bg-blue-500 text-white px-2 py-1 rounded text-xs"
               disabled={isIndexing}
+              className="ml-1 px-2 py-1 h-7 text-xs"
             >
               Index Now
-            </button>
+            </Button>
           )}
+
           {isIndexing && (
-            <span className="ml-2 text-blue-600 animate-pulse">
+            <Badge
+              variant="outline"
+              className="bg-blue-50 text-blue-600 flex items-center gap-1 py-1"
+            >
+              <RefreshCw className="h-4 w-4 animate-spin" />
               Indexing in progress...
-            </span>
-          )}
-          {indexingStatus && (
-            <div className="text-xs text-gray-600 mt-1">{indexingStatus}</div>
+            </Badge>
           )}
         </div>
-      </div>
-    </div>
+
+        {indexingStatus && (
+          <div className="text-xs text-gray-600 mt-1">{indexingStatus}</div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

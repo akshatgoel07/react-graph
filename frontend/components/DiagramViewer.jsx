@@ -31,7 +31,9 @@ export default function DiagramViewer({
 
   return (
     <div className="flex-1 p-4">
-      {loading && <div className="text-center">Analyzing repository...</div>}
+      {loading && (
+        <div className="text-center min-h-[500px]">Analyzing repository...</div>
+      )}
       {error && <div className="text-red-500 text-center">{error}</div>}
       {reactFlowData && !loading && (
         <ReactFlowDiagram

@@ -15,15 +15,14 @@ function cleanupFlowData(rawData) {
     console.log("Attempting to parse string data:", rawData);
     try {
       const parsed = JSON.parse(rawData);
-      return parsed; // Proceed with further processing
+      return parsed;
     } catch (error) {
       console.error("JSON Parsing Error:", error);
       console.log("Invalid JSON string:", rawData);
-      return { nodes: [], edges: [] }; // Fallback to avoid crashes
     }
   } else {
     console.log("Using object data directly:", rawData);
-    return rawData; // Assuming it's already an object
+    return rawData;
   }
 }
 

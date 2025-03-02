@@ -2,6 +2,18 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Send, Loader2 } from "lucide-react";
 
 export default function ChatComponent({ session, selectedRepo }) {
   const chatContainerRef = useRef(null);
@@ -60,59 +72,72 @@ export default function ChatComponent({ session, selectedRepo }) {
   }, [chatMessages]);
 
   return (
-    <div className="p-4 border-t bg-white">
-      <div className="text-xs text-gray-500 mb-1">
-        {chatMessages.length > 1
-          ? `${chatMessages.length - 1} messages`
-          : "No messages yet"}
-      </div>
-
-      <div
-        ref={chatContainerRef}
-        className="max-h-64 overflow-y-auto mb-2 border border-gray-200 p-2 rounded"
-      >
-        {chatMessages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`mb-2 ${
-              msg.role === "user" ? "text-right" : "text-left"
-            }`}
-          >
-            <span
-              className={`inline-block p-2 rounded-lg ${
-                msg.role === "user"
-                  ? "bg-blue-100 text-blue-900"
-                  : "bg-gray-100 text-gray-900"
-              }`}
-              style={{ maxWidth: "80%", wordBreak: "break-word" }}
-            >
-              {msg.content}
-            </span>
+    <Card className="border-t rounded-none shadow-none">
+      <CardHeader className="pb-2 pt-2">
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-sm font-medium">Chat</CardTitle>
+          <Badge variant="outline" className="text-xs">
+            {chatMessages.length > 1
+              ? `${chatMessages.length - 1} messages`
+              : "No messages yet"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0 px-4">
+        <ScrollArea className="h-64 w-full pr-4">
+          <div className="flex flex-col gap-2 py-2">
+            {chatMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${
+                  msg.role === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-lg p-3 ${
+                    msg.role === "user"
+                      ? "bg-blue-100 text-blue-900"
+                      : "bg-gray-100 text-gray-900"
+                  }`}
+                >
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="max-w-[80%] rounded-lg p-3 bg-gray-100 flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-gray-500">Typing...</span>
+                </div>
+              </div>
+            )}
           </div>
-        ))}
-        {isLoading && <div className="text-gray-500">Typing...</div>}
-      </div>
-
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          value={input}
-          onChange={handleInputChange}
-          placeholder={
-            selectedRepo
-              ? "Ask about the codebase..."
-              : "Select a repository first..."
-          }
-          className="flex-1 p-2 border rounded-lg"
-          disabled={isLoading || !selectedRepo}
-        />
-        <button
-          type="submit"
-          className="bg-blue-500 text-white px-4 py-2 rounded-lg"
-          disabled={isLoading || !selectedRepo}
-        >
-          Send
-        </button>
-      </form>
-    </div>
+        </ScrollArea>
+      </CardContent>
+      <CardFooter className="pt-2 pb-4">
+        <form onSubmit={handleSubmit} className="flex w-full gap-2">
+          <Input
+            value={input}
+            onChange={handleInputChange}
+            placeholder={
+              selectedRepo
+                ? "Ask about the codebase..."
+                : "Select a repository first..."
+            }
+            className="flex-1"
+            disabled={isLoading || !selectedRepo}
+          />
+          <Button type="submit" disabled={isLoading || !selectedRepo}>
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            <span className="ml-2">Send</span>
+          </Button>
+        </form>
+      </CardFooter>
+    </Card>
   );
 }
