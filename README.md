@@ -1,4 +1,4 @@
-# CodeFlow
+# React Graph
 
 A tool to explore GitHub repositories with interactive React Flow diagrams and AI-powered Q&A.
 
