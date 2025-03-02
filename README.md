@@ -1,4 +1,4 @@
-# CodeFlow
+# React Graph
 
 A tool to explore GitHub repositories with interactive React Flow diagrams and AI-powered Q&A.
 
@@ -20,7 +20,7 @@ A tool to explore GitHub repositories with interactive React Flow diagrams and A
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/codeflow.git
+git clone https://github.com/akshatgoel07/react-graph/
 cd codeflow
 ```
 
@@ -45,7 +45,11 @@ PORT=3001
 Create `frontend/.env.local` and add:
 
 ```ini
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
+
+NEXT_PUBLIC_GITHUB_CLIENT_ID=
+NEXT_PUBLIC_GITHUB_ID=
+NEXT_PUBLIC_GITHUB_SECRET=
+NEXT_PUBLIC_NEXTAUTH_URL=
 ```
 
 ### 4. Run the development servers
