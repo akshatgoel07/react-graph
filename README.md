@@ -21,13 +21,13 @@ A tool to explore GitHub repositories with interactive React Flow diagrams and A
 
 ```bash
 git clone https://github.com/akshatgoel07/react-graph/
-cd codeflow
+cd react-graph
 ```
 
-### 2. Install dependencies
+### 2. Install dependencies (in root folder)
 
 ```bash
-npm run install-all
+pnpm install
 ```
 
 ### 3. Set environment variables
@@ -46,16 +46,16 @@ Create `frontend/.env.local` and add:
 
 ```ini
 
-NEXT_PUBLIC_GITHUB_CLIENT_ID=
-NEXT_PUBLIC_GITHUB_ID=
-NEXT_PUBLIC_GITHUB_SECRET=
-NEXT_PUBLIC_NEXTAUTH_URL=
+NEXT_PUBLIC_GITHUB_CLIENT_ID=your_github_client_id
+NEXT_PUBLIC_GITHUB_ID=your_github_id
+NEXT_PUBLIC_GITHUB_SECRET=your_github_secret
+NEXT_PUBLIC_NEXTAUTH_URL=http://localhost:3000
 ```
 
 ### 4. Run the development servers
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 - **Backend:** http://localhost:3001
@@ -72,7 +72,7 @@ npm run dev
 ## Project Structure
 
 ```
-codeflow/
+react-graph/
 │── backend/              # Node.js/Express server
 │   ├── server.js        # Main API server
 │   ├── rag-service.js   # Retrieval-Augmented Generation logic
