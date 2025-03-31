@@ -3,8 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev:frontend": "pnpm --filter react-flow dev",
-    "dev:backend": "pnpm --filter react-flow-backend start",
-    "dev": "pnpm -r --parallel dev"
-  }
+    "dev": "pnpm --parallel -r run dev",
+    "build": "pnpm --parallel -r run build",
+    "start": "pnpm --parallel -r run start",
+    "lint": "pnpm --parallel -r run lint",
+    "frontend:dev": "pnpm --filter frontend run dev",
+    "backend:dev": "pnpm --filter backend run start"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
 }
