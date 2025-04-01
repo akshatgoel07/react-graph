@@ -7,16 +7,19 @@ export async function fetchRepos(accessToken) {
 }
 
 export async function analyzeReactFlowRepo(repo, accessToken) {
-  const response = await fetch("http://localhost:3001/generate-react-flow", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      accessToken,
-      owner: repo.owner.login,
-      repo: repo.name,
-      branch: repo.default_branch,
-    }),
-  });
+  const response = await fetch(
+    "http://localhost:3001/api/visualization/react-flow",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accessToken,
+        owner: repo.owner.login,
+        repo: repo.name,
+        branch: repo.default_branch,
+      }),
+    },
+  );
   if (!response.ok) throw new Error("Failed to generate React Flow data");
   return response.json();
 }

@@ -1,5 +1,12 @@
 # React Graph
 
+## TODOs
+
+| Task | Description | Due Date |
+|------|-------------|----------|
+| 🔄 Update Index Route | Update the "Index Now" route on frontend and store the indexed files in vector database | April 15, 2023 |
+| 💾 Database Storage | Verify that data is being stored correctly in PostgreSQL | April 20, 2023 |
+
 A tool to explore GitHub repositories with interactive React Flow diagrams and AI-powered Q&A.
 
 ## Features
