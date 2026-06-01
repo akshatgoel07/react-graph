@@ -4,11 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
 import {
+  chat,
   generateGraph,
   indexRepo,
   type Flow,
   type ProgressEvent,
 } from "@/lib/api";
+
+type Msg = { role: "user" | "assistant"; content: string };
 
 // React Flow is client-only; avoid SSR measuring issues.
 const Diagram = dynamic(() => import("@/components/Diagram"), { ssr: false });
@@ -27,6 +30,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [question, setQuestion] = useState("");
+  const [chatting, setChatting] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
+
   // Persist the key locally (never leaves the browser except as X-Gemini-Key).
   useEffect(() => {
     const saved = localStorage.getItem(KEY_STORAGE);
@@ -38,6 +46,9 @@ export default function Home() {
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [log]);
+  useEffect(() => {
+    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight });
+  }, [messages]);
 
   const append = useCallback(
     (line: string) => setLog((l) => [...l, line]),
@@ -84,6 +95,35 @@ export default function Home() {
       setGraphing(false);
     }
   }, [project, path, apiKey, append]);
+
+  const onAsk = useCallback(async () => {
+    const q = question.trim();
+    if (!q || chatting || !apiKey.trim()) return;
+    setError(null);
+    setQuestion("");
+    setMessages((m) => [...m, { role: "user", content: q }, { role: "assistant", content: "" }]);
+    setChatting(true);
+    try {
+      await chat({
+        project: project.trim(),
+        query: q,
+        key: apiKey.trim(),
+        onDelta: (d) =>
+          setMessages((m) => {
+            const next = [...m];
+            next[next.length - 1] = {
+              role: "assistant",
+              content: next[next.length - 1].content + d,
+            };
+            return next;
+          }),
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setChatting(false);
+    }
+  }, [question, chatting, apiKey, project]);
 
   return (
     <main style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>
@@ -174,6 +214,69 @@ export default function Home() {
           <Diagram flow={flow} />
         </div>
       )}
+
+      {/* Chat */}
+      <section style={panel}>
+        <strong style={{ fontSize: 15 }}>Talk to the repo</strong>
+        <p style={{ color: "var(--muted)", fontSize: 12.5, margin: "4px 0 12px" }}>
+          Index the repo first, then ask about it. Answers are grounded in the
+          retrieved code.
+        </p>
+        <div
+          ref={chatRef}
+          style={{
+            maxHeight: 320,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            marginBottom: 12,
+          }}
+        >
+          {messages.length === 0 && (
+            <div style={{ color: "var(--muted)", fontSize: 13 }}>
+              e.g. “How does routing work?” · “Where are vectors stored?”
+            </div>
+          )}
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                maxWidth: "85%",
+                background: m.role === "user" ? "var(--accent)" : "#0e1218",
+                color: m.role === "user" ? "#0b0d12" : "var(--text)",
+                border: m.role === "user" ? "none" : "1px solid var(--border)",
+                borderRadius: 10,
+                padding: "9px 13px",
+                fontSize: 13.5,
+                lineHeight: 1.5,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {m.content || (chatting && i === messages.length - 1 ? "…" : "")}
+            </div>
+          ))}
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onAsk();
+          }}
+          style={{ display: "flex", gap: 10 }}
+        >
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder={apiKey ? "Ask about the codebase…" : "Enter your Gemini key above first"}
+            disabled={chatting || !apiKey}
+            style={{ ...input, flex: 1 }}
+          />
+          <button type="submit" disabled={chatting || !question.trim() || !apiKey} style={btn(chatting || !question.trim() || !apiKey)}>
+            {chatting ? "…" : "Ask"}
+          </button>
+        </form>
+      </section>
     </main>
   );
 }

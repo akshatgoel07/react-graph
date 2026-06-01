@@ -91,6 +91,36 @@ export async function generateGraph(opts: {
   return json.flow;
 }
 
+export type ChatChunk = { delta?: string; done: boolean; error?: string };
+
+/** Ask a question about an indexed repo; onDelta fires for each streamed token. */
+export async function chat(opts: {
+  project: string;
+  query: string;
+  key: string;
+  onDelta: (delta: string) => void;
+  signal?: AbortSignal;
+}): Promise<void> {
+  const res = await fetch(`${GATEWAY}/api/chat`, {
+    method: "POST",
+    headers: headers(opts.key),
+    body: JSON.stringify({ project: opts.project, query: opts.query }),
+    signal: opts.signal,
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`chat request failed: HTTP ${res.status}`);
+  }
+  await readSSE(res.body, (event, data) => {
+    if (event === "chunk") {
+      const c = JSON.parse(data) as ChatChunk;
+      if (c.error) throw new Error(c.error);
+      if (c.delta) opts.onDelta(c.delta);
+    } else if (event === "error") {
+      throw new Error((JSON.parse(data) as { error: string }).error);
+    }
+  });
+}
+
 // Minimal SSE parser over a fetch ReadableStream (EventSource can't POST).
 async function readSSE(
   body: ReadableStream<Uint8Array>,

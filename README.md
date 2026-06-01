@@ -109,7 +109,10 @@ Built and pushed to `main` incrementally so progress is visible.
       TypeScript frontend: BYOK key field (localStorage), project/path inputs,
       an Index button that streams progress, and a Generate-diagram button that
       renders the graph with `@xyflow/react`. Verified end-to-end.
-- [ ] **Phase 6 — Chat/RAG.** Qdrant retrieval + streamed Gemini answers.
+- [x] **Phase 6 — Chat/RAG.** Worker embeds the question, retrieves top-k
+      chunks from Qdrant, and streams a grounded `gemini-2.5-flash` answer
+      (NATS → gateway SSE → UI). Frontend chat panel renders tokens live.
+      Verified: answers cite the actual indexed files.
 - [ ] **Phase 7 — Notes & polish.** Persisted understanding/notes per repo, UI
       polish, docs.
 

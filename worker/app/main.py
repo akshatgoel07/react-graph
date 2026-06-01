@@ -14,8 +14,10 @@ import signal
 
 from nats.aio.msg import Msg
 
-from app import ai, config, contracts, graph, indexer, source
+from app import ai, config, contracts, graph, indexer, rag, source
 from app.bus import Bus
+from app.embeddings import Embedder
+from app.store import Store
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,7 +28,7 @@ log = logging.getLogger("worker")
 
 async def amain() -> None:
     cfg = config.load()
-    log.info("starting worker (phase 5)")
+    log.info("starting worker (phase 6)")
     log.info("  nats=%s qdrant=%s workspace=%s", cfg.nats_url, cfg.qdrant_url, cfg.workspace_dir)
     log.info("  chat=%s embed=%s(dim=%d)", cfg.chat_model, cfg.embed_model, cfg.embed_dim)
 
@@ -56,10 +58,49 @@ async def amain() -> None:
             log.exception("graph request failed")
             await msg.respond(json.dumps({"ok": False, "error": str(exc)}).encode())
 
+    async def run_chat(req: dict) -> None:
+        stream_id = req.get("stream_id", "")
+        subject = contracts.chat_stream_subject(stream_id)
+
+        async def send(chunk: dict) -> None:
+            await bus.publish(subject, json.dumps(chunk).encode())
+
+        store: Store | None = None
+        try:
+            key = req.get("gemini_key", "")
+            if not key:
+                raise ValueError("no Gemini key supplied (BYOK)")
+            query = req.get("query", "")
+            project = req.get("project", "")
+
+            embedder = Embedder(key, cfg.embed_model, cfg.embed_dim)
+            store = Store(cfg.qdrant_url, cfg.embed_dim)
+            qvec = await embedder.embed_query(query)
+            hits = await store.search(project, qvec, top_k=rag.TOP_K)
+
+            gem = ai.Gemini(key, cfg.chat_model)
+            async for delta in gem.stream(rag.build_prompt(query, hits)):
+                await send({"delta": delta, "done": False})
+            await send({"done": True})
+        except Exception as exc:  # noqa: BLE001 - stream the error to the UI
+            log.exception("chat request failed")
+            await send({"done": True, "error": str(exc)})
+        finally:
+            if store is not None:
+                await store.close()
+
+    async def on_chat(msg: Msg) -> None:
+        try:
+            req = json.loads(msg.data)
+        except json.JSONDecodeError:
+            log.warning("dropping malformed chat request")
+            return
+        asyncio.create_task(run_chat(req))
+
     await bus.subscribe(contracts.SUBJECT_INDEX_REQUEST, on_index, queue=contracts.WORKER_QUEUE)
     await bus.subscribe(contracts.SUBJECT_GRAPH_REQUEST, on_graph, queue=contracts.WORKER_QUEUE)
-    log.info("subscribed to %s, %s (queue=%s)",
-             contracts.SUBJECT_INDEX_REQUEST, contracts.SUBJECT_GRAPH_REQUEST, contracts.WORKER_QUEUE)
+    await bus.subscribe(contracts.SUBJECT_CHAT_REQUEST, on_chat, queue=contracts.WORKER_QUEUE)
+    log.info("subscribed to index/graph/chat (queue=%s)", contracts.WORKER_QUEUE)
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
