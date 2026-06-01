@@ -1,11 +1,9 @@
-# Phase 1 runs on the standard library only — boots fast, fails nowhere.
-# Dependencies are added in the phase that first uses them:
-#   Phase 3: nats-py
-#   Phase 4: qdrant-client, google-genai, tree-sitter + tree-sitter-language-pack
-# (listed here as a roadmap; uncomment as each phase lands)
+# Phase 3: NATS client (asyncio).
+nats-py==2.9.0
+
+# Added in later phases as they land:
+#   Phase 4: qdrant-client, google-genai
+#   Phase 4+: tree-sitter + tree-sitter-language-pack (symbol-aware chunking)
 #
-# nats-py==2.9.0
 # qdrant-client==1.12.1
 # google-genai==1.5.0
-# tree-sitter==0.23.2
-# tree-sitter-language-pack==0.4.0

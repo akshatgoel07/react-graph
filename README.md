@@ -94,8 +94,10 @@ Built and pushed to `main` incrementally so progress is visible.
       `POST /api/index`, `GET /api/index/stream`, `POST /api/graph`,
       `POST /api/chat`, `/api/notes`. Endpoints degrade gracefully until the
       worker handlers land (clear 503 / timeout messages).
-- [ ] **Phase 3 — Worker core.** NATS subscriber, local filesystem source
-      adapter, code chunking.
+- [x] **Phase 3 — Worker core.** Async NATS subscriber (queue group), local
+      filesystem source adapter (sandboxed to the workspace, ignores binaries /
+      generated dirs), and a code chunker. Indexing now walks + chunks a repo
+      and streams live progress to the UI end-to-end (embeddings/storage in P4).
 - [ ] **Phase 4 — Indexing.** Gemini embeddings → Qdrant, with progress streamed
       to the UI.
 - [ ] **Phase 5 — Graph.** Gemini → React Flow architecture diagram.
