@@ -10,6 +10,7 @@ from __future__ import annotations
 SUBJECT_INDEX_REQUEST = "rg.index.request"  # gateway -> worker (queue group)
 SUBJECT_GRAPH_REQUEST = "rg.graph.request"  # gateway <-> worker (request/reply)
 SUBJECT_CHAT_REQUEST = "rg.chat.request"    # gateway -> worker (starts a stream)
+SUBJECT_NOTES_REQUEST = "rg.notes.request"  # gateway <-> worker (request/reply)
 
 # Queue group so multiple workers share the index workload.
 WORKER_QUEUE = "react-graph-workers"

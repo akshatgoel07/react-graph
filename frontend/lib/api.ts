@@ -121,6 +121,39 @@ export async function chat(opts: {
   });
 }
 
+export type Note = { id: string; text: string; created: number };
+
+export async function listNotes(project: string): Promise<Note[]> {
+  const res = await fetch(
+    `${GATEWAY}/api/notes?project=${encodeURIComponent(project)}`,
+  );
+  const j = (await res.json()) as { ok?: boolean; notes?: Note[]; error?: string };
+  if (!res.ok || !j.ok) throw new Error(j.error || `notes failed: HTTP ${res.status}`);
+  return j.notes ?? [];
+}
+
+export async function addNote(project: string, text: string): Promise<Note[]> {
+  const res = await fetch(`${GATEWAY}/api/notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project, text }),
+  });
+  const j = (await res.json()) as { ok?: boolean; notes?: Note[]; error?: string };
+  if (!res.ok || !j.ok) throw new Error(j.error || `add note failed: HTTP ${res.status}`);
+  return j.notes ?? [];
+}
+
+export async function deleteNote(project: string, id: string): Promise<Note[]> {
+  const res = await fetch(`${GATEWAY}/api/notes`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project, id }),
+  });
+  const j = (await res.json()) as { ok?: boolean; notes?: Note[]; error?: string };
+  if (!res.ok || !j.ok) throw new Error(j.error || `delete note failed: HTTP ${res.status}`);
+  return j.notes ?? [];
+}
+
 // Minimal SSE parser over a fetch ReadableStream (EventSource can't POST).
 async function readSSE(
   body: ReadableStream<Uint8Array>,

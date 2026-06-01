@@ -11,6 +11,7 @@ const (
 	SubjectIndexRequest = "rg.index.request" // gateway -> worker (queue group)
 	SubjectGraphRequest = "rg.graph.request" // gateway <-> worker (request/reply)
 	SubjectChatRequest  = "rg.chat.request"  // gateway -> worker (starts a stream)
+	SubjectNotesRequest = "rg.notes.request" // gateway <-> worker (request/reply)
 )
 
 // IndexProgressSubject is where the worker publishes progress for a job and the

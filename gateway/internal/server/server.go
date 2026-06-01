@@ -16,7 +16,7 @@ import (
 	"github.com/akshatgoel07/react-graph/gateway/internal/contracts"
 )
 
-const Version = "0.4.0-phase4"
+const Version = "0.7.0-phase7"
 
 // Server is the HTTP/orchestration tier. It owns no AI logic — it validates,
 // carries the BYOK key, and brokers work to the worker over NATS.
@@ -40,9 +40,10 @@ func (s *Server) Router() http.Handler {
 	r.Route("/api", func(r chi.Router) {
 		r.Post("/index", s.handleIndex)     // index a local repo, streaming progress (SSE)
 		r.Post("/graph", s.handleGraph)     // React Flow diagram (request/reply)
-		r.Post("/chat", s.handleChat)       // streamed RAG answer (SSE)
-		r.Get("/notes", s.handleNotesTODO)  // Phase 7
-		r.Post("/notes", s.handleNotesTODO) // Phase 7
+		r.Post("/chat", s.handleChat)          // streamed RAG answer (SSE)
+		r.Get("/notes", s.handleNotesList)     // list notes for a project
+		r.Post("/notes", s.handleNotesAdd)     // add a note
+		r.Delete("/notes", s.handleNotesDelete) // delete a note
 	})
 	return r
 }
@@ -270,8 +271,65 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleNotesTODO(w http.ResponseWriter, _ *http.Request) {
-	writeErr(w, http.StatusNotImplemented, "notes land in Phase 7")
+// notesRPC forwards a notes operation to the worker and relays its reply.
+// Notes need no Gemini key.
+func (s *Server) notesRPC(w http.ResponseWriter, payload map[string]any) {
+	data, _ := json.Marshal(payload)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	msg, err := s.bus.Request(ctx, contracts.SubjectNotesRequest, data)
+	if err != nil {
+		if errors.Is(err, nats.ErrNoResponders) {
+			writeErr(w, http.StatusServiceUnavailable, "notes worker unavailable")
+			return
+		}
+		writeErr(w, http.StatusGatewayTimeout, "notes request failed: "+err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(msg.Data)
+}
+
+func (s *Server) handleNotesList(w http.ResponseWriter, r *http.Request) {
+	project := r.URL.Query().Get("project")
+	if project == "" {
+		writeErr(w, http.StatusBadRequest, "project query param required")
+		return
+	}
+	s.notesRPC(w, map[string]any{"op": "list", "project": project})
+}
+
+func (s *Server) handleNotesAdd(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Project string `json:"project"`
+		Text    string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if body.Project == "" || body.Text == "" {
+		writeErr(w, http.StatusBadRequest, "project and text are required")
+		return
+	}
+	s.notesRPC(w, map[string]any{"op": "add", "project": body.Project, "text": body.Text})
+}
+
+func (s *Server) handleNotesDelete(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Project string `json:"project"`
+		ID      string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if body.Project == "" || body.ID == "" {
+		writeErr(w, http.StatusBadRequest, "project and id are required")
+		return
+	}
+	s.notesRPC(w, map[string]any{"op": "delete", "project": body.Project, "id": body.ID})
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

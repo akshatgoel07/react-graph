@@ -4,10 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
 import {
+  addNote,
   chat,
+  deleteNote,
   generateGraph,
   indexRepo,
+  listNotes,
   type Flow,
+  type Note,
   type ProgressEvent,
 } from "@/lib/api";
 
@@ -35,6 +39,9 @@ export default function Home() {
   const [chatting, setChatting] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [noteText, setNoteText] = useState("");
+
   // Persist the key locally (never leaves the browser except as X-Gemini-Key).
   useEffect(() => {
     const saved = localStorage.getItem(KEY_STORAGE);
@@ -49,6 +56,15 @@ export default function Home() {
   useEffect(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight });
   }, [messages]);
+
+  // Load notes whenever the project changes.
+  useEffect(() => {
+    const p = project.trim();
+    if (!p) return;
+    listNotes(p)
+      .then(setNotes)
+      .catch(() => setNotes([]));
+  }, [project]);
 
   const append = useCallback(
     (line: string) => setLog((l) => [...l, line]),
@@ -124,6 +140,28 @@ export default function Home() {
       setChatting(false);
     }
   }, [question, chatting, apiKey, project]);
+
+  const onAddNote = useCallback(async () => {
+    const t = noteText.trim();
+    if (!t) return;
+    try {
+      setNotes(await addNote(project.trim(), t));
+      setNoteText("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [noteText, project]);
+
+  const onDeleteNote = useCallback(
+    async (id: string) => {
+      try {
+        setNotes(await deleteNote(project.trim(), id));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [project],
+  );
 
   return (
     <main style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>
@@ -214,6 +252,69 @@ export default function Home() {
           <Diagram flow={flow} />
         </div>
       )}
+
+      {/* Notes */}
+      <section style={panel}>
+        <strong style={{ fontSize: 15 }}>Notes &amp; understanding</strong>
+        <p style={{ color: "var(--muted)", fontSize: 12.5, margin: "4px 0 12px" }}>
+          Capture what you learn about <code>{project || "this repo"}</code>.
+          Saved notes are fed into chat as established context.
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onAddNote();
+          }}
+          style={{ display: "flex", gap: 10, marginBottom: 12 }}
+        >
+          <input
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="e.g. The gateway never holds the Gemini key — it's BYOK per request."
+            style={{ ...input, flex: 1 }}
+          />
+          <button type="submit" disabled={!noteText.trim()} style={btn(!noteText.trim())}>
+            Save
+          </button>
+        </form>
+        {notes.length === 0 ? (
+          <div style={{ color: "var(--muted)", fontSize: 13 }}>No notes yet.</div>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            {notes.map((n) => (
+              <li
+                key={n.id}
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  background: "#0e1218",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 13.5,
+                }}
+              >
+                <span style={{ flex: 1, lineHeight: 1.45 }}>{n.text}</span>
+                <button
+                  onClick={() => onDeleteNote(n.id)}
+                  title="Delete note"
+                  style={{
+                    background: "transparent",
+                    color: "var(--muted)",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 16,
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Chat */}
       <section style={panel}>

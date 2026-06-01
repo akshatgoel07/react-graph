@@ -14,7 +14,7 @@ import signal
 
 from nats.aio.msg import Msg
 
-from app import ai, config, contracts, graph, indexer, rag, source
+from app import ai, config, contracts, graph, indexer, notes as notes_store, rag, source
 from app.bus import Bus
 from app.embeddings import Embedder
 from app.store import Store
@@ -28,7 +28,7 @@ log = logging.getLogger("worker")
 
 async def amain() -> None:
     cfg = config.load()
-    log.info("starting worker (phase 6)")
+    log.info("starting worker (phase 7)")
     log.info("  nats=%s qdrant=%s workspace=%s", cfg.nats_url, cfg.qdrant_url, cfg.workspace_dir)
     log.info("  chat=%s embed=%s(dim=%d)", cfg.chat_model, cfg.embed_model, cfg.embed_dim)
 
@@ -77,9 +77,10 @@ async def amain() -> None:
             store = Store(cfg.qdrant_url, cfg.embed_dim)
             qvec = await embedder.embed_query(query)
             hits = await store.search(project, qvec, top_k=rag.TOP_K)
+            saved = await notes_store.list_notes(project)
 
             gem = ai.Gemini(key, cfg.chat_model)
-            async for delta in gem.stream(rag.build_prompt(query, hits)):
+            async for delta in gem.stream(rag.build_prompt(query, hits, saved)):
                 await send({"delta": delta, "done": False})
             await send({"done": True})
         except Exception as exc:  # noqa: BLE001 - stream the error to the UI
@@ -97,10 +98,29 @@ async def amain() -> None:
             return
         asyncio.create_task(run_chat(req))
 
+    async def on_notes(msg: Msg) -> None:
+        try:
+            req = json.loads(msg.data)
+            op = req.get("op")
+            project = req.get("project", "")
+            if op == "list":
+                result = await notes_store.list_notes(project)
+            elif op == "add":
+                result = await notes_store.add_note(project, req.get("text", ""))
+            elif op == "delete":
+                result = await notes_store.delete_note(project, req.get("id", ""))
+            else:
+                raise ValueError(f"unknown notes op: {op!r}")
+            await msg.respond(json.dumps({"ok": True, "notes": result}).encode())
+        except Exception as exc:  # noqa: BLE001 - reply with the error
+            log.exception("notes request failed")
+            await msg.respond(json.dumps({"ok": False, "error": str(exc)}).encode())
+
     await bus.subscribe(contracts.SUBJECT_INDEX_REQUEST, on_index, queue=contracts.WORKER_QUEUE)
     await bus.subscribe(contracts.SUBJECT_GRAPH_REQUEST, on_graph, queue=contracts.WORKER_QUEUE)
     await bus.subscribe(contracts.SUBJECT_CHAT_REQUEST, on_chat, queue=contracts.WORKER_QUEUE)
-    log.info("subscribed to index/graph/chat (queue=%s)", contracts.WORKER_QUEUE)
+    await bus.subscribe(contracts.SUBJECT_NOTES_REQUEST, on_notes, queue=contracts.WORKER_QUEUE)
+    log.info("subscribed to index/graph/chat/notes (queue=%s)", contracts.WORKER_QUEUE)
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

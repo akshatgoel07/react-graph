@@ -78,8 +78,14 @@ Then open:
 - Qdrant dashboard: <http://localhost:6333/dashboard>
 - NATS monitoring: <http://localhost:8222>
 
-The frontend's home page live-checks the gateway so you can confirm the stack is
-up.
+### Using it
+
+1. Paste your Gemini key (kept only in your browser, sent per request).
+2. Set a **project** name and the **path** to a repo under `./workspace`.
+3. **Index repo** — watch progress stream as files are chunked + embedded.
+4. **Generate diagram** — an architecture graph rendered with React Flow.
+5. **Talk to the repo** — ask questions; answers are grounded in retrieved code.
+6. **Notes** — record what you learn; notes feed back into chat as context.
 
 ---
 
@@ -113,8 +119,10 @@ Built and pushed to `main` incrementally so progress is visible.
       chunks from Qdrant, and streams a grounded `gemini-2.5-flash` answer
       (NATS → gateway SSE → UI). Frontend chat panel renders tokens live.
       Verified: answers cite the actual indexed files.
-- [ ] **Phase 7 — Notes & polish.** Persisted understanding/notes per repo, UI
-      polish, docs.
+- [x] **Phase 7 — Notes & polish.** Per-project notes persisted to a writable
+      volume (CRUD via `/api/notes`), surfaced in a UI panel, and folded into the
+      chat prompt so understanding compounds. Verified add/list/delete + chat
+      context.
 
 ## Repository layout
 

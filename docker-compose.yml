@@ -65,6 +65,9 @@ services:
     volumes:
       # Repos to analyze, mounted read-only. Point HOST_WORKSPACE at your checkouts.
       - ${HOST_WORKSPACE:-./workspace}:/workspace:ro
+      # Writable store for per-project notes (the only thing the worker persists
+      # to disk besides vectors, which live in Qdrant).
+      - notes_data:/data
     depends_on:
       nats:
         condition: service_healthy
@@ -83,3 +86,4 @@ services:
 
 volumes:
   qdrant_data:
+  notes_data:
