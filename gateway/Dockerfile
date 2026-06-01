@@ -1,11 +1,10 @@
 # ── build ────────────────────────────────────────────────────────────────────
-FROM golang:1.23-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 
-# Dependencies first for layer caching. go.sum may be absent in Phase 1 (no deps).
-COPY go.mod ./
-COPY go.su[m] ./
-RUN go mod download || true
+# Dependencies first for layer caching.
+COPY go.mod go.sum ./
+RUN go mod download
 
 COPY . .
 # Static binary so it can run on a scratch image and serve as its own healthcheck.

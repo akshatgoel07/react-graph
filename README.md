@@ -89,8 +89,11 @@ Built and pushed to `main` incrementally so progress is visible.
 - [x] **Phase 1 — Scaffold & orchestration.** Teardown of the old app; polyglot
       monorepo; `docker compose up` brings up frontend + gateway + worker +
       Qdrant + NATS; frontend reports gateway health.
-- [ ] **Phase 2 — Gateway.** chi router, BYOK key middleware, NATS connection,
-      SSE, route surface for index/graph/chat/notes.
+- [x] **Phase 2 — Gateway.** chi router, BYOK key middleware, NATS connection
+      (reconnecting), SSE streaming, and the full route surface:
+      `POST /api/index`, `GET /api/index/stream`, `POST /api/graph`,
+      `POST /api/chat`, `/api/notes`. Endpoints degrade gracefully until the
+      worker handlers land (clear 503 / timeout messages).
 - [ ] **Phase 3 — Worker core.** NATS subscriber, local filesystem source
       adapter, code chunking.
 - [ ] **Phase 4 — Indexing.** Gemini embeddings → Qdrant, with progress streamed
