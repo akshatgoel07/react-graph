@@ -30,12 +30,9 @@ services:
       - "6334:6334" # gRPC
     volumes:
       - qdrant_data:/qdrant/storage
-    healthcheck:
-      # qdrant image is distroless-ish; use the TCP-readiness of the REST port.
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/6333 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+    # No healthcheck: the qdrant image has no shell/curl to probe with. The
+    # worker connects to Qdrant lazily (only during an index/chat job, by which
+    # point it's up), so service_started is sufficient.
 
   # ── Orchestration gateway (Go): HTTP/SSE to the browser, NATS to the worker ──
   gateway:
@@ -72,7 +69,7 @@ services:
       nats:
         condition: service_healthy
       qdrant:
-        condition: service_healthy
+        condition: service_started
 
   # ── Frontend (Next.js + TypeScript) ─────────────────────────────────────────
   frontend:

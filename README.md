@@ -91,15 +91,18 @@ Built and pushed to `main` incrementally so progress is visible.
       Qdrant + NATS; frontend reports gateway health.
 - [x] **Phase 2 — Gateway.** chi router, BYOK key middleware, NATS connection
       (reconnecting), SSE streaming, and the full route surface:
-      `POST /api/index`, `GET /api/index/stream`, `POST /api/graph`,
+      `POST /api/index` (streams progress), `POST /api/graph`,
       `POST /api/chat`, `/api/notes`. Endpoints degrade gracefully until the
       worker handlers land (clear 503 / timeout messages).
 - [x] **Phase 3 — Worker core.** Async NATS subscriber (queue group), local
       filesystem source adapter (sandboxed to the workspace, ignores binaries /
       generated dirs), and a code chunker. Indexing now walks + chunks a repo
       and streams live progress to the UI end-to-end (embeddings/storage in P4).
-- [ ] **Phase 4 — Indexing.** Gemini embeddings → Qdrant, with progress streamed
-      to the UI.
+- [x] **Phase 4 — Indexing.** `gemini-embedding-001` embeddings (batched,
+      BYOK) → per-project Qdrant collection, progress streamed live. The index
+      endpoint is now a single race-free SSE `POST` (gateway subscribes before
+      publishing). Verified end-to-end: a sample repo embeds and lands in Qdrant
+      (dim 3072, status green).
 - [ ] **Phase 5 — Graph.** Gemini → React Flow architecture diagram.
 - [ ] **Phase 6 — Chat/RAG.** Qdrant retrieval + streamed Gemini answers.
 - [ ] **Phase 7 — Notes & polish.** Persisted understanding/notes per repo, UI

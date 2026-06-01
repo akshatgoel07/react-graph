@@ -1,9 +1,16 @@
-# Phase 3: NATS client (asyncio).
-nats-py==2.9.0
+# NATS client (asyncio)
+nats-py>=2.6.0
 
-# Added in later phases as they land:
-#   Phase 4: qdrant-client, google-genai
-#   Phase 4+: tree-sitter + tree-sitter-language-pack (symbol-aware chunking)
+# Vector store — kept within one minor of the qdrant server image (v1.12.4)
+# to avoid the client/server compatibility warning.
+qdrant-client>=1.12,<1.14
+
+# Gemini — the only external dependency. BYOK: key passed per request.
+google-genai>=1.0.0
+
+# Floors (not exact pins) so local docker builds resolve against current
+# releases; tighten to exact versions if you need reproducible builds.
 #
-# qdrant-client==1.12.1
-# google-genai==1.5.0
+# Phase 4+ (optional): symbol-aware chunking via tree-sitter
+#   tree-sitter>=0.23.0
+#   tree-sitter-language-pack>=0.4.0

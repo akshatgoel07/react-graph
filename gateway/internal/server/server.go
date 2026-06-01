@@ -16,7 +16,7 @@ import (
 	"github.com/akshatgoel07/react-graph/gateway/internal/contracts"
 )
 
-const Version = "0.2.0-phase2"
+const Version = "0.4.0-phase4"
 
 // Server is the HTTP/orchestration tier. It owns no AI logic — it validates,
 // carries the BYOK key, and brokers work to the worker over NATS.
@@ -38,12 +38,11 @@ func (s *Server) Router() http.Handler {
 	r.Get("/readyz", s.handleReady)
 
 	r.Route("/api", func(r chi.Router) {
-		r.Post("/index", s.handleIndex)        // start indexing a local repo
-		r.Get("/index/stream", s.handleStream) // SSE progress for a job
-		r.Post("/graph", s.handleGraph)        // React Flow diagram (request/reply)
-		r.Post("/chat", s.handleChat)          // streamed RAG answer (SSE)
-		r.Get("/notes", s.handleNotesTODO)     // Phase 7
-		r.Post("/notes", s.handleNotesTODO)    // Phase 7
+		r.Post("/index", s.handleIndex)     // index a local repo, streaming progress (SSE)
+		r.Post("/graph", s.handleGraph)     // React Flow diagram (request/reply)
+		r.Post("/chat", s.handleChat)       // streamed RAG answer (SSE)
+		r.Get("/notes", s.handleNotesTODO)  // Phase 7
+		r.Post("/notes", s.handleNotesTODO) // Phase 7
 	})
 	return r
 }
@@ -66,8 +65,9 @@ func (s *Server) handleReady(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, code, map[string]any{"ready": ready, "nats": s.bus.Connected()})
 }
 
-// handleIndex enqueues an index job and returns its id. Progress is consumed
-// via GET /api/index/stream?job=<id>.
+// handleIndex indexes a local repo and streams progress as SSE. To avoid
+// missing early events on a fast job, the gateway subscribes to the progress
+// subject BEFORE publishing the request (core NATS has no replay).
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	key, ok := geminiKey(r.Context())
 	if !ok {
@@ -88,26 +88,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	job := uuid.NewString()
-	data, _ := json.Marshal(contracts.IndexRequest{
-		JobID:     job,
-		Project:   body.Project,
-		Path:      body.Path,
-		GeminiKey: key,
-	})
-	if err := s.bus.Publish(contracts.SubjectIndexRequest, data); err != nil {
-		writeErr(w, http.StatusBadGateway, "failed to enqueue index job: "+err.Error())
-		return
-	}
-	writeJSON(w, http.StatusAccepted, map[string]any{"job_id": job})
-}
-
-// handleStream relays a job's progress events from NATS to the browser as SSE.
-func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
-	job := r.URL.Query().Get("job")
-	if job == "" {
-		writeErr(w, http.StatusBadRequest, "job query param required")
-		return
-	}
 	sub, ch, err := s.bus.SubscribeChan(contracts.IndexProgressSubject(job))
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "subscribe failed: "+err.Error())
@@ -120,14 +100,34 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
-	sse.comment("subscribed to job " + job)
+	jobJSON, _ := json.Marshal(map[string]string{"job_id": job})
+	sse.event("job", jobJSON)
 
+	data, _ := json.Marshal(contracts.IndexRequest{
+		JobID:     job,
+		Project:   body.Project,
+		Path:      body.Path,
+		GeminiKey: key,
+	})
+	if err := s.bus.Publish(contracts.SubjectIndexRequest, data); err != nil {
+		sse.event("error", []byte(`{"error":"failed to enqueue index job"}`))
+		return
+	}
+
+	// Embedding a large repo can take a while; reset the idle timer on activity
+	// so a slow-but-alive job keeps streaming, while a dead worker still ends.
+	const idle = 180 * time.Second
+	timeout := time.NewTimer(idle)
+	defer timeout.Stop()
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 	ctx := r.Context()
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-timeout.C:
+			sse.event("error", []byte(`{"error":"indexing stalled — worker unavailable or no progress"}`))
 			return
 		case <-ticker.C:
 			sse.comment("keepalive")
@@ -137,6 +137,13 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 			if json.Unmarshal(msg.Data, &ev) == nil && (ev.Done || ev.Error != "") {
 				return
 			}
+			if !timeout.Stop() {
+				select {
+				case <-timeout.C:
+				default:
+				}
+			}
+			timeout.Reset(idle)
 		}
 	}
 }
