@@ -1,0 +1,88 @@
+# react-graph — local-first repo comprehension tool.
+# Five services, one network. Only external dependency at runtime: the Gemini API.
+#
+#   frontend (Next/TS) ──HTTP/SSE──► gateway (Go) ──NATS──► worker (Python) ──► Qdrant
+#                                                            └── Gemini API (BYOK) ─┘
+#
+# Bring it up:  cp .env.example .env  &&  docker compose up --build
+
+name: react-graph
+
+services:
+  # ── Messaging fabric: job queue + request/reply + progress pub-sub ──────────
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-m", "8222"] # JetStream + monitoring
+    ports:
+      - "4222:4222" # client
+      - "8222:8222" # monitoring/health
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Vector database ─────────────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    ports:
+      - "6333:6333" # REST
+      - "6334:6334" # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      # qdrant image is distroless-ish; use the TCP-readiness of the REST port.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/6333 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ── Orchestration gateway (Go): HTTP/SSE to the browser, NATS to the worker ──
+  gateway:
+    build: ./gateway
+    environment:
+      GATEWAY_PORT: ${GATEWAY_PORT:-8080}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/gateway", "-healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── AI/RAG worker (Python): chunking, Gemini embeddings + chat, Qdrant ───────
+  worker:
+    build: ./worker
+    environment:
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      WORKSPACE_DIR: ${WORKSPACE_DIR:-/workspace}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-2.5-flash}
+      GEMINI_EMBED_MODEL: ${GEMINI_EMBED_MODEL:-gemini-embedding-001}
+      EMBED_DIM: ${EMBED_DIM:-3072}
+    volumes:
+      # Repos to analyze, mounted read-only. Point HOST_WORKSPACE at your checkouts.
+      - ${HOST_WORKSPACE:-./workspace}:/workspace:ro
+    depends_on:
+      nats:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
+  # ── Frontend (Next.js + TypeScript) ─────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-http://localhost:8080}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - gateway
+
+volumes:
+  qdrant_data:

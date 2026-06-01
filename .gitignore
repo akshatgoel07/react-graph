@@ -1,12 +1,31 @@
+# Secrets / env
+.env
+*.env
+!.env.example
+
+# Node / Next
 node_modules/
-backend/node_modules/
-frontend/node_modules/
 frontend/.next/
 frontend/out/
+frontend/node_modules/
+
+# Go
+gateway/bin/
+
+# Python
+worker/__pycache__/
+worker/**/__pycache__/
+worker/.venv/
+*.pyc
+
+# Data volumes (local docker)
+.data/
+qdrant_storage/
+
+# Repos to analyze are mounted here; keep the dir, ignore contents
+workspace/*
+!workspace/.gitkeep
+
+# Misc
 *.log
-.env
-backend/.env
-frontend/.env.local
-dist/
-build/
 *.DS_Store

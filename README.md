@@ -1,114 +1,113 @@
-# React Graph
+# react-graph
 
-## TODOs
+A **local-first repo comprehension tool**. Point it at a repository on your
+machine and it builds an interactive architecture graph, lets you **talk to the
+codebase**, and helps you accumulate **understanding & notes** — all running on
+your own machine in Docker.
 
-| Task | Description | Due Date |
-|------|-------------|----------|
-| 🔄 Update Index Route | Update the "Index Now" route on frontend and store the indexed files in vector database | April 15, 2023 |
-| 💾 Database Storage | Verify that data is being stored correctly in PostgreSQL | April 20, 2023 |
+> The **only external dependency is the Gemini API**, and you bring your own key
+> (BYOK). The key travels per-request from the browser and is **never persisted**
+> server-side. Everything else — orchestration, messaging, vectors — runs in
+> local containers.
 
-A tool to explore GitHub repositories with interactive React Flow diagrams and AI-powered Q&A.
-
-## Features
-
-- **Visualize** repository architecture using **React Flow**
-- **Index** codebases and **query** them with natural language via AI chat
-- **Seamless GitHub integration** for authenticated repository access
-
-## Prerequisites
-
-- **Node.js** (>=18.x)
-- **npm** (>=9.x)
-- **GitHub account** for authentication
-- **API keys** for Google Generative AI and Hugging Face (see Setup)
-
-## Setup
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/akshatgoel07/react-graph/
-cd react-graph
-```
-
-### 2. Install dependencies (in root folder)
-
-```bash
-pnpm install
-```
-
-### 3. Set environment variables
-
-#### Backend
-Create `backend/.env` and add:
-
-```ini
-GEMINI_API_KEY=your_google_gemini_key
-HF_API_KEY=your_hugging_face_key
-PORT=3001
-```
-
-#### Frontend
-Create `frontend/.env.local` and add:
-
-```ini
-
-NEXT_PUBLIC_GITHUB_CLIENT_ID=your_github_client_id
-NEXT_PUBLIC_GITHUB_ID=your_github_id
-NEXT_PUBLIC_GITHUB_SECRET=your_github_secret
-NEXT_PUBLIC_NEXTAUTH_URL=http://localhost:3000
-```
-
-### 4. Run the development servers
-
-```bash
-pnpm dev
-```
-
-- **Backend:** http://localhost:3001
-- **Frontend:** http://localhost:3000
-
-## Usage
-
-1. Open **[http://localhost:3000](http://localhost:3000)** in your browser.
-2. Sign in with **GitHub**.
-3. Select a repository from your list.
-4. Click **"Index Now"** to process the codebase.
-5. Explore the **React Flow diagram** and ask questions in the chat (e.g., "How does routing work?").
-
-## Project Structure
-
-```
-react-graph/
-│── backend/              # Node.js/Express server
-│   ├── server.js        # Main API server
-│   ├── rag-service.js   # Retrieval-Augmented Generation logic
-│
-│── frontend/             # Next.js/React application
-│   ├── pages/           # Routing and main entry (index.jsx)
-│   ├── components/      # Reusable UI components
-│   ├── utils/           # API helpers
-```
-
-## Contributing
-
-1. **Fork** the repository.
-2. **Create a branch**:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-3. **Commit changes**:
-   ```bash
-   git commit -m "Add your feature"
-   ```
-4. **Push to your fork**:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-5. **Open a Pull Request**.
-6. **Report bugs** or **suggest features** in the **Issues** tab.
-7. Keep code **modular** and follow existing patterns.
+This is a ground-up rewrite of the original GitHub-coupled prototype. GitHub is
+gone: source comes straight from the local filesystem.
 
 ---
 
-🚀 Happy Coding!
+## Architecture
+
+```
+┌──────────────┐   HTTP + SSE    ┌─────────────────┐     NATS      ┌────────────────────┐
+│  frontend    │ ──────────────► │   gateway (Go)  │ ────────────► │   worker (Python)  │
+│  Next.js/TS  │ ◄────────────── │  orchestration  │ ◄──progress── │   RAG + Gemini     │
+└──────────────┘                 └────────┬────────┘   events      └─────────┬──────────┘
+                                          │                                  │
+                                   request/reply + job queue                 ├─► Qdrant (vectors)
+                                       (NATS / JetStream)                     ├─► local repo (ro mount)
+                                                                              └─► Gemini API (BYOK)
+```
+
+| Service    | Language        | Responsibility |
+|------------|-----------------|----------------|
+| `frontend` | Next.js + TypeScript | UI: repo picker, architecture graph (React Flow), chat, notes. |
+| `gateway`  | Go              | The only service the browser talks to. Terminates HTTP/SSE, carries the BYOK Gemini key per request, validates input, enqueues jobs and streams progress/results over NATS. No Gemini SDK — pure orchestration. |
+| `worker`   | Python          | Where the AI lives: filesystem source reader, code chunking, Gemini embeddings, Qdrant upsert/search, Gemini chat + graph generation. |
+| `qdrant`   | (image)         | Vector database for code embeddings. |
+| `nats`     | (image)         | Messaging fabric: job queue **and** request/reply **and** progress pub-sub. |
+
+### Why these choices (2026)
+
+- **Go for the gateway, Python for the AI.** The gateway's job is concurrency,
+  streaming and orchestration — Go's strengths. The RAG/LLM ecosystem lives in
+  Python, so that's where embeddings, chunking and Gemini calls go. Go never
+  touches the Gemini SDK.
+- **NATS as a single fabric** (queue + RPC + pub-sub) avoids running both a
+  message queue and a separate gRPC stack. Indexing is a long-running job with
+  live progress — a natural fit.
+- **Qdrant** over pgvector: purpose-built vector search, one-line Docker, native
+  payload filtering, and no SQL schema to maintain for a local tool.
+- **Gemini, BYOK, only external dep.** Embeddings: `gemini-embedding-001` (GA,
+  3072-dim). Chat/graph: `gemini-2.5-flash` (1M context) by default — note
+  `gemini-2.0-flash` is **deprecated as of 2026-06-01**. Both configurable via
+  `.env`.
+
+---
+
+## Running it
+
+Prerequisites: Docker + Docker Compose, and a Gemini API key
+(<https://aistudio.google.com/apikey>).
+
+```bash
+cp .env.example .env
+# (optional) put a dev-fallback key in .env; otherwise enter it in the UI
+
+# Put the repo(s) you want to analyze where the worker can read them:
+#   HOST_WORKSPACE in .env points at a folder of checkouts (default ./workspace)
+git clone <some-repo> ./workspace/some-repo
+
+docker compose up --build
+```
+
+Then open:
+
+- Frontend: <http://localhost:3000>
+- Gateway health: <http://localhost:8080/health>
+- Qdrant dashboard: <http://localhost:6333/dashboard>
+- NATS monitoring: <http://localhost:8222>
+
+The frontend's home page live-checks the gateway so you can confirm the stack is
+up.
+
+---
+
+## Phase roadmap
+
+Built and pushed to `main` incrementally so progress is visible.
+
+- [x] **Phase 1 — Scaffold & orchestration.** Teardown of the old app; polyglot
+      monorepo; `docker compose up` brings up frontend + gateway + worker +
+      Qdrant + NATS; frontend reports gateway health.
+- [ ] **Phase 2 — Gateway.** chi router, BYOK key middleware, NATS connection,
+      SSE, route surface for index/graph/chat/notes.
+- [ ] **Phase 3 — Worker core.** NATS subscriber, local filesystem source
+      adapter, code chunking.
+- [ ] **Phase 4 — Indexing.** Gemini embeddings → Qdrant, with progress streamed
+      to the UI.
+- [ ] **Phase 5 — Graph.** Gemini → React Flow architecture diagram.
+- [ ] **Phase 6 — Chat/RAG.** Qdrant retrieval + streamed Gemini answers.
+- [ ] **Phase 7 — Notes & polish.** Persisted understanding/notes per repo, UI
+      polish, docs.
+
+## Repository layout
+
+```
+react-graph/
+├── docker-compose.yml      # the whole local system
+├── .env.example            # config (Gemini key, models, paths)
+├── frontend/               # Next.js + TypeScript
+├── gateway/                # Go orchestration tier
+├── worker/                 # Python AI/RAG tier
+└── workspace/              # mount point for repos to analyze (git-ignored)
+```
