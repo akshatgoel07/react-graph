@@ -14,7 +14,7 @@ import signal
 
 from nats.aio.msg import Msg
 
-from app import config, contracts, indexer
+from app import ai, config, contracts, graph, indexer, source
 from app.bus import Bus
 
 logging.basicConfig(
@@ -26,7 +26,7 @@ log = logging.getLogger("worker")
 
 async def amain() -> None:
     cfg = config.load()
-    log.info("starting worker (phase 4)")
+    log.info("starting worker (phase 5)")
     log.info("  nats=%s qdrant=%s workspace=%s", cfg.nats_url, cfg.qdrant_url, cfg.workspace_dir)
     log.info("  chat=%s embed=%s(dim=%d)", cfg.chat_model, cfg.embed_model, cfg.embed_dim)
 
@@ -41,8 +41,25 @@ async def amain() -> None:
         # Run the job off the subscription callback so we keep consuming.
         asyncio.create_task(indexer.run_index(bus, cfg, req))
 
+    async def on_graph(msg: Msg) -> None:
+        try:
+            req = json.loads(msg.data)
+            key = req.get("gemini_key", "")
+            if not key:
+                raise ValueError("no Gemini key supplied (BYOK)")
+            root = source.resolve_repo(cfg.workspace_dir, req.get("path", ""))
+            paths = [str(p.relative_to(root)) for p in source.iter_files(root)]
+            gem = ai.Gemini(key, cfg.chat_model)
+            flow = await graph.build_graph(gem, root, paths)
+            await msg.respond(json.dumps({"ok": True, "flow": flow}).encode())
+        except Exception as exc:  # noqa: BLE001 - reply with the error
+            log.exception("graph request failed")
+            await msg.respond(json.dumps({"ok": False, "error": str(exc)}).encode())
+
     await bus.subscribe(contracts.SUBJECT_INDEX_REQUEST, on_index, queue=contracts.WORKER_QUEUE)
-    log.info("subscribed to %s (queue=%s)", contracts.SUBJECT_INDEX_REQUEST, contracts.WORKER_QUEUE)
+    await bus.subscribe(contracts.SUBJECT_GRAPH_REQUEST, on_graph, queue=contracts.WORKER_QUEUE)
+    log.info("subscribed to %s, %s (queue=%s)",
+             contracts.SUBJECT_INDEX_REQUEST, contracts.SUBJECT_GRAPH_REQUEST, contracts.WORKER_QUEUE)
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

@@ -72,7 +72,8 @@ docker compose up --build
 
 Then open:
 
-- Frontend: <http://localhost:3000>
+- Frontend: <http://localhost:3000> (if 3000 is taken, set `FRONTEND_PORT` in
+  `.env`, e.g. `FRONTEND_PORT=3100`)
 - Gateway health: <http://localhost:8080/health>
 - Qdrant dashboard: <http://localhost:6333/dashboard>
 - NATS monitoring: <http://localhost:8222>
@@ -103,7 +104,11 @@ Built and pushed to `main` incrementally so progress is visible.
       endpoint is now a single race-free SSE `POST` (gateway subscribes before
       publishing). Verified end-to-end: a sample repo embeds and lands in Qdrant
       (dim 3072, status green).
-- [ ] **Phase 5 — Graph.** Gemini → React Flow architecture diagram.
+- [x] **Phase 5 — Graph.** Worker detects the stack + file layout and prompts
+      `gemini-2.5-flash` for React Flow JSON (request/reply over NATS). New
+      TypeScript frontend: BYOK key field (localStorage), project/path inputs,
+      an Index button that streams progress, and a Generate-diagram button that
+      renders the graph with `@xyflow/react`. Verified end-to-end.
 - [ ] **Phase 6 — Chat/RAG.** Qdrant retrieval + streamed Gemini answers.
 - [ ] **Phase 7 — Notes & polish.** Persisted understanding/notes per repo, UI
       polish, docs.
