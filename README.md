@@ -13,6 +13,8 @@ your own machine in Docker.
 This is a ground-up rewrite of the original GitHub-coupled prototype. GitHub is
 gone: source comes straight from the local filesystem.
 
+![react-graph — graph canvas on the left, chat & notes on the right](docs/home.png)
+
 ---
 
 ## Architecture
