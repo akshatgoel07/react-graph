@@ -81,7 +81,8 @@ Then open:
 ### Using it
 
 1. Paste your Gemini key (kept only in your browser, sent per request).
-2. Set a **project** name and the **path** to a repo under `./workspace`.
+2. Either set the **path** to a repo already under `./workspace`, **or** paste a
+   **public GitHub URL** to have it cloned and indexed automatically.
 3. **Index repo** — watch progress stream as files are chunked + embedded.
 4. **Generate diagram** — an architecture graph rendered with React Flow.
 5. **Talk to the repo** — ask questions; answers are grounded in retrieved code.
@@ -123,6 +124,10 @@ Built and pushed to `main` incrementally so progress is visible.
       volume (CRUD via `/api/notes`), surfaced in a UI panel, and folded into the
       chat prompt so understanding compounds. Verified add/list/delete + chat
       context.
+- [x] **Phase 8 — Index a public GitHub URL.** Paste a public repo URL; the
+      worker shallow-clones it into the workspace (git over HTTPS, no token →
+      doesn't reintroduce GitHub auth) and indexes it in one streamed action.
+      Verified by cloning + indexing `octocat/Hello-World`.
 
 ## Repository layout
 

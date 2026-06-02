@@ -11,7 +11,7 @@ import logging
 
 from qdrant_client import models
 
-from app import chunker, contracts, source
+from app import chunker, clone, contracts, source
 from app.bus import Bus
 from app.config import Config
 from app.embeddings import Embedder
@@ -26,6 +26,7 @@ async def run_index(bus: Bus, cfg: Config, req: dict) -> None:
     job = req.get("job_id", "")
     project = req.get("project", "")
     rel = req.get("path", "")
+    repo_url = (req.get("repo_url") or "").strip()
     key = req.get("gemini_key", "")
     subject = contracts.index_progress_subject(job)
 
@@ -33,11 +34,18 @@ async def run_index(bus: Bus, cfg: Config, req: dict) -> None:
         ev = contracts.progress_event(job, stage, message, current, total, done, error)
         await bus.publish(subject, json.dumps(ev).encode())
 
-    log.info("index job %s: project=%s path=%s", job, project, rel)
+    log.info("index job %s: project=%s path=%s url=%s", job, project, rel, repo_url or "-")
     store: Store | None = None
     try:
         if not key:
             raise ValueError("no Gemini key supplied (BYOK)")
+
+        # If a public GitHub URL was given, clone it into the workspace first.
+        if repo_url:
+            await emit("clone", f"cloning {repo_url} …")
+            rel = await clone.clone_repo(cfg.workspace_dir, repo_url)
+            await emit("clone", f"ready at workspace/{rel}")
+
         root = source.resolve_repo(cfg.workspace_dir, rel)
 
         await emit("scan", f"scanning {rel} …")

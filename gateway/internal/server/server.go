@@ -78,6 +78,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Project string `json:"project"`
 		Path    string `json:"path"`
+		RepoURL string `json:"repo_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid JSON body")
@@ -108,6 +109,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		JobID:     job,
 		Project:   body.Project,
 		Path:      body.Path,
+		RepoURL:   body.RepoURL,
 		GeminiKey: key,
 	})
 	if err := s.bus.Publish(contracts.SubjectIndexRequest, data); err != nil {

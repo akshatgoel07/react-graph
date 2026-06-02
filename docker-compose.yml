@@ -63,8 +63,9 @@ services:
       GEMINI_EMBED_MODEL: ${GEMINI_EMBED_MODEL:-gemini-embedding-001}
       EMBED_DIM: ${EMBED_DIM:-3072}
     volumes:
-      # Repos to analyze, mounted read-only. Point HOST_WORKSPACE at your checkouts.
-      - ${HOST_WORKSPACE:-./workspace}:/workspace:ro
+      # Repos to analyze. Read-write so cloned public repos (Phase 8) land here
+      # alongside any manual checkouts. Point HOST_WORKSPACE at your checkouts.
+      - ${HOST_WORKSPACE:-./workspace}:/workspace
       # Writable store for per-project notes (the only thing the worker persists
       # to disk besides vectors, which live in Qdrant).
       - notes_data:/data

@@ -17,6 +17,16 @@ import {
 
 type Msg = { role: "user" | "assistant"; content: string };
 
+// Derive a workspace-safe slug from a repo URL (…/owner/repo.git -> "repo").
+function slugFromUrl(url: string): string {
+  try {
+    const seg = new URL(url).pathname.replace(/\/+$/, "").split("/").pop() ?? "";
+    return seg.replace(/\.git$/, "").replace(/[^A-Za-z0-9._-]/g, "_");
+  } catch {
+    return "";
+  }
+}
+
 // React Flow is client-only; avoid SSR measuring issues.
 const Diagram = dynamic(() => import("@/components/Diagram"), { ssr: false });
 
@@ -26,6 +36,7 @@ export default function Home() {
   const [apiKey, setApiKey] = useState("");
   const [project, setProject] = useState("sample");
   const [path, setPath] = useState("sample");
+  const [repoUrl, setRepoUrl] = useState("");
 
   const [log, setLog] = useState<string[]>([]);
   const [indexing, setIndexing] = useState(false);
@@ -82,6 +93,7 @@ export default function Home() {
         project: project.trim(),
         path: path.trim(),
         key: apiKey.trim(),
+        repoUrl: repoUrl.trim() || undefined,
         onEvent: (e: ProgressEvent) => {
           append(`[${e.stage}] ${e.message}`);
           if (e.error) setError(e.error);
@@ -92,7 +104,7 @@ export default function Home() {
     } finally {
       setIndexing(false);
     }
-  }, [project, path, apiKey, append]);
+  }, [project, path, apiKey, repoUrl, append]);
 
   const onGraph = useCallback(async () => {
     setError(null);
@@ -186,6 +198,23 @@ export default function Home() {
             style={input}
           />
         </label>
+        <label style={{ ...lbl, marginTop: 12 }}>
+          Public GitHub URL (optional — clones &amp; indexes; no login needed)
+          <input
+            value={repoUrl}
+            onChange={(e) => {
+              const v = e.target.value;
+              setRepoUrl(v);
+              const slug = slugFromUrl(v);
+              if (slug) {
+                setProject(slug);
+                setPath(slug);
+              }
+            }}
+            placeholder="https://github.com/owner/repo"
+            style={input}
+          />
+        </label>
         <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
           <label style={{ ...lbl, flex: 1 }}>
             Project name
@@ -196,7 +225,7 @@ export default function Home() {
             />
           </label>
           <label style={{ ...lbl, flex: 1 }}>
-            Path (relative to ./workspace)
+            {repoUrl.trim() ? "Clone target (under ./workspace)" : "Path (relative to ./workspace)"}
             <input
               value={path}
               onChange={(e) => setPath(e.target.value)}

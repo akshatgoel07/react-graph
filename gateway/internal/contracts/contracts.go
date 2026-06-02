@@ -21,11 +21,14 @@ func IndexProgressSubject(jobID string) string { return "rg.index.progress." + j
 // ChatStreamSubject is where the worker streams answer chunks for a chat turn.
 func ChatStreamSubject(streamID string) string { return "rg.chat.stream." + streamID }
 
-// IndexRequest asks the worker to index a local repo into Qdrant.
+// IndexRequest asks the worker to index a repo into Qdrant. If RepoURL is set
+// (a public https git URL), the worker shallow-clones it into the workspace
+// first, then indexes the result at Path.
 type IndexRequest struct {
 	JobID     string `json:"job_id"`
 	Project   string `json:"project"`
-	Path      string `json:"path"` // relative to the worker's WORKSPACE_DIR
+	Path      string `json:"path"`               // relative to the worker's WORKSPACE_DIR
+	RepoURL   string `json:"repo_url,omitempty"` // optional public git URL to clone
 	GeminiKey string `json:"gemini_key"`
 }
 

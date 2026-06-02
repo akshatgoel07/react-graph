@@ -4,6 +4,11 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+# git is needed to clone public repos by URL (Phase 8).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Dependencies first for layer caching.
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

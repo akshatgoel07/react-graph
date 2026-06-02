@@ -40,13 +40,18 @@ export async function indexRepo(opts: {
   project: string;
   path: string;
   key: string;
+  repoUrl?: string;
   onEvent: (e: ProgressEvent) => void;
   signal?: AbortSignal;
 }): Promise<void> {
   const res = await fetch(`${GATEWAY}/api/index`, {
     method: "POST",
     headers: headers(opts.key),
-    body: JSON.stringify({ project: opts.project, path: opts.path }),
+    body: JSON.stringify({
+      project: opts.project,
+      path: opts.path,
+      repo_url: opts.repoUrl ?? "",
+    }),
     signal: opts.signal,
   });
   if (!res.ok || !res.body) {

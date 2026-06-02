@@ -28,7 +28,7 @@ log = logging.getLogger("worker")
 
 async def amain() -> None:
     cfg = config.load()
-    log.info("starting worker (phase 7)")
+    log.info("starting worker (phase 8)")
     log.info("  nats=%s qdrant=%s workspace=%s", cfg.nats_url, cfg.qdrant_url, cfg.workspace_dir)
     log.info("  chat=%s embed=%s(dim=%d)", cfg.chat_model, cfg.embed_model, cfg.embed_dim)
 
