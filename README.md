@@ -13,7 +13,9 @@ your own machine in Docker.
 This is a ground-up rewrite of the original GitHub-coupled prototype. GitHub is
 gone: source comes straight from the local filesystem.
 
-![react-graph — graph canvas on the left, chat & notes on the right](docs/home.png)
+![react-graph analyzing its own repo — architecture diagram on the left, grounded chat on the right](docs/home.png)
+
+<sub>Above: react-graph pointed at its own public repo — the generated architecture diagram (left) and a grounded chat answer (right).</sub>
 
 ---
 
