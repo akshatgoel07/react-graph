@@ -128,6 +128,11 @@ Built and pushed to `main` incrementally so progress is visible.
       worker shallow-clones it into the workspace (git over HTTPS, no token →
       doesn't reintroduce GitHub auth) and indexes it in one streamed action.
       Verified by cloning + indexing `octocat/Hello-World`.
+- [x] **Phase 9 — Heptabase-inspired redesign.** Minimal monochrome (paper-white,
+      CSS-variable theme), slim top bar with a unified repo field (local path
+      *or* GitHub URL), **graph canvas on the left, Chat/Notes tabs on the
+      right**. lucide icons, markdown-rendered answers, a streaming caret, and
+      React Flow nodes styled as Heptabase-like cards.
 
 ## Repository layout
 

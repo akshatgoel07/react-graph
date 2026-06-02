@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import {
   ReactFlow,
   Background,
+  BackgroundVariant,
   Controls,
   MiniMap,
   useNodesState,
@@ -17,35 +18,25 @@ export default function Diagram({ flow }: { flow: Flow }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(flow.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(flow.edges);
 
-  // Re-seed when a new graph arrives.
   useEffect(() => {
     setNodes(flow.nodes);
     setEdges(flow.edges);
   }, [flow, setNodes, setEdges]);
 
   return (
-    <div
-      style={{
-        height: 540,
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-        overflow: "hidden",
-        background: "#0e1218",
-      }}
+    <ReactFlow
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={onNodesChange}
+      onEdgesChange={onEdgesChange}
+      fitView
+      colorMode="light"
+      proOptions={{ hideAttribution: true }}
+      minZoom={0.2}
     >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        fitView
-        colorMode="dark"
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background />
-        <Controls />
-        <MiniMap pannable zoomable />
-      </ReactFlow>
-    </div>
+      <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#e4e4e7" />
+      <Controls showInteractive={false} />
+      <MiniMap pannable zoomable maskColor="rgba(0,0,0,0.04)" nodeColor="#d6d6d6" />
+    </ReactFlow>
   );
 }

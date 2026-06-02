@@ -1,23 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-
 import {
-  addNote,
-  chat,
-  deleteNote,
-  generateGraph,
-  indexRepo,
-  listNotes,
-  type Flow,
-  type Note,
-  type ProgressEvent,
-} from "@/lib/api";
+  Boxes,
+  Database,
+  GitBranch,
+  KeyRound,
+  Loader2,
+  MessageSquare,
+  NotebookPen,
+} from "lucide-react";
 
-type Msg = { role: "user" | "assistant"; content: string };
+import { generateGraph, indexRepo, type Flow, type ProgressEvent } from "@/lib/api";
+import Chat from "@/components/Chat";
+import Notes from "@/components/Notes";
 
-// Derive a workspace-safe slug from a repo URL (…/owner/repo.git -> "repo").
+const Diagram = dynamic(() => import("@/components/Diagram"), { ssr: false });
+
+const KEY_STORAGE = "rg.geminiKey";
+
+// Workspace-safe slug from a repo URL (…/owner/repo.git -> "repo").
 function slugFromUrl(url: string): string {
   try {
     const seg = new URL(url).pathname.replace(/\/+$/, "").split("/").pop() ?? "";
@@ -27,33 +30,16 @@ function slugFromUrl(url: string): string {
   }
 }
 
-// React Flow is client-only; avoid SSR measuring issues.
-const Diagram = dynamic(() => import("@/components/Diagram"), { ssr: false });
-
-const KEY_STORAGE = "rg.geminiKey";
-
 export default function Home() {
   const [apiKey, setApiKey] = useState("");
-  const [project, setProject] = useState("sample");
-  const [path, setPath] = useState("sample");
-  const [repoUrl, setRepoUrl] = useState("");
-
-  const [log, setLog] = useState<string[]>([]);
+  const [repo, setRepo] = useState("sample");
+  const [flow, setFlow] = useState<Flow | null>(null);
   const [indexing, setIndexing] = useState(false);
   const [graphing, setGraphing] = useState(false);
-  const [flow, setFlow] = useState<Flow | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const logRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<"chat" | "notes">("chat");
 
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [question, setQuestion] = useState("");
-  const [chatting, setChatting] = useState(false);
-  const chatRef = useRef<HTMLDivElement>(null);
-
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [noteText, setNoteText] = useState("");
-
-  // Persist the key locally (never leaves the browser except as X-Gemini-Key).
   useEffect(() => {
     const saved = localStorage.getItem(KEY_STORAGE);
     if (saved) setApiKey(saved);
@@ -61,41 +47,27 @@ export default function Home() {
   useEffect(() => {
     if (apiKey) localStorage.setItem(KEY_STORAGE, apiKey);
   }, [apiKey]);
-  useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [log]);
-  useEffect(() => {
-    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight });
-  }, [messages]);
 
-  // Load notes whenever the project changes.
-  useEffect(() => {
-    const p = project.trim();
-    if (!p) return;
-    listNotes(p)
-      .then(setNotes)
-      .catch(() => setNotes([]));
-  }, [project]);
-
-  const append = useCallback(
-    (line: string) => setLog((l) => [...l, line]),
-    [],
-  );
-
-  const ready = apiKey.trim() && project.trim() && path.trim();
+  // One field accepts either a GitHub URL or a local workspace path.
+  const trimmed = repo.trim();
+  const isUrl = /^https?:\/\//i.test(trimmed);
+  const repoUrl = isUrl ? trimmed : "";
+  const project = isUrl ? slugFromUrl(trimmed) : trimmed;
+  const ready = !!apiKey.trim() && !!project;
 
   const onIndex = useCallback(async () => {
+    if (!ready) return;
     setError(null);
-    setLog([]);
     setIndexing(true);
+    setStatus("starting…");
     try {
       await indexRepo({
-        project: project.trim(),
-        path: path.trim(),
+        project,
+        path: project,
         key: apiKey.trim(),
-        repoUrl: repoUrl.trim() || undefined,
+        repoUrl: repoUrl || undefined,
         onEvent: (e: ProgressEvent) => {
-          append(`[${e.stage}] ${e.message}`);
+          setStatus(e.message);
           if (e.error) setError(e.error);
         },
       });
@@ -104,344 +76,205 @@ export default function Home() {
     } finally {
       setIndexing(false);
     }
-  }, [project, path, apiKey, repoUrl, append]);
+  }, [ready, project, repoUrl, apiKey]);
 
   const onGraph = useCallback(async () => {
+    if (!ready) return;
     setError(null);
     setGraphing(true);
     try {
-      const f = await generateGraph({
-        project: project.trim(),
-        path: path.trim(),
-        key: apiKey.trim(),
-      });
-      setFlow(f);
-      append(`[graph] ${f.nodes.length} nodes, ${f.edges.length} edges`);
+      setFlow(await generateGraph({ project, path: project, key: apiKey.trim() }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setGraphing(false);
     }
-  }, [project, path, apiKey, append]);
-
-  const onAsk = useCallback(async () => {
-    const q = question.trim();
-    if (!q || chatting || !apiKey.trim()) return;
-    setError(null);
-    setQuestion("");
-    setMessages((m) => [...m, { role: "user", content: q }, { role: "assistant", content: "" }]);
-    setChatting(true);
-    try {
-      await chat({
-        project: project.trim(),
-        query: q,
-        key: apiKey.trim(),
-        onDelta: (d) =>
-          setMessages((m) => {
-            const next = [...m];
-            next[next.length - 1] = {
-              role: "assistant",
-              content: next[next.length - 1].content + d,
-            };
-            return next;
-          }),
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setChatting(false);
-    }
-  }, [question, chatting, apiKey, project]);
-
-  const onAddNote = useCallback(async () => {
-    const t = noteText.trim();
-    if (!t) return;
-    try {
-      setNotes(await addNote(project.trim(), t));
-      setNoteText("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }, [noteText, project]);
-
-  const onDeleteNote = useCallback(
-    async (id: string) => {
-      try {
-        setNotes(await deleteNote(project.trim(), id));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
-    },
-    [project],
-  );
+  }, [ready, project, apiKey]);
 
   return (
-    <main style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>
-      <h1 style={{ fontSize: 28, margin: 0, letterSpacing: -0.5 }}>
-        react-graph
-      </h1>
-      <p style={{ color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>
-        Local-first repo comprehension. Index a repo under{" "}
-        <code>./workspace</code>, then generate its architecture diagram —
-        powered only by your Gemini key.
-      </p>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      {/* ── Top bar ──────────────────────────────────────────────────────── */}
+      <header
+        style={{
+          height: "var(--topbar-h)",
+          flexShrink: 0,
+          borderBottom: "1px solid var(--border)",
+          background: "var(--panel)",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "0 16px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, letterSpacing: -0.2 }}>
+          <Boxes size={18} />
+          react-graph
+        </div>
 
-      {/* Controls */}
-      <section style={panel}>
-        <label style={lbl}>
-          Gemini API key (BYOK · stored only in your browser)
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="AIza…"
-            style={input}
-          />
-        </label>
-        <label style={{ ...lbl, marginTop: 12 }}>
-          Public GitHub URL (optional — clones &amp; indexes; no login needed)
-          <input
-            value={repoUrl}
-            onChange={(e) => {
-              const v = e.target.value;
-              setRepoUrl(v);
-              const slug = slugFromUrl(v);
-              if (slug) {
-                setProject(slug);
-                setPath(slug);
-              }
-            }}
-            placeholder="https://github.com/owner/repo"
-            style={input}
-          />
-        </label>
-        <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
-          <label style={{ ...lbl, flex: 1 }}>
-            Project name
+        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Field icon={<KeyRound size={14} />}>
             <input
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-              style={input}
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Gemini key"
+              style={{ ...bareInput, width: 130 }}
             />
-          </label>
-          <label style={{ ...lbl, flex: 1 }}>
-            {repoUrl.trim() ? "Clone target (under ./workspace)" : "Path (relative to ./workspace)"}
+          </Field>
+          <Field icon={<GitBranch size={14} />}>
             <input
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              style={input}
+              value={repo}
+              onChange={(e) => setRepo(e.target.value)}
+              placeholder="workspace path or github.com/owner/repo"
+              style={{ ...bareInput, width: 280 }}
             />
-          </label>
-        </div>
-        <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-          <button
-            onClick={onIndex}
-            disabled={!ready || indexing}
-            style={btn(!ready || indexing)}
-          >
-            {indexing ? "Indexing…" : "Index repo"}
+          </Field>
+          <button onClick={onIndex} disabled={!ready || indexing} style={ghostBtn(!ready || indexing)}>
+            {indexing ? <Loader2 size={14} style={spin} /> : <Database size={14} />} Index
           </button>
-          <button
-            onClick={onGraph}
-            disabled={!ready || graphing}
-            style={btn(!ready || graphing)}
-          >
-            {graphing ? "Generating…" : "Generate diagram"}
+          <button onClick={onGraph} disabled={!ready || graphing} style={solidBtn(!ready || graphing)}>
+            {graphing ? <Loader2 size={14} style={spin} /> : <GitBranch size={14} />} Generate diagram
           </button>
         </div>
-        {error && (
-          <p style={{ color: "var(--bad)", marginTop: 12, fontSize: 13 }}>
-            {error}
-          </p>
-        )}
-      </section>
 
-      {/* Progress log */}
-      {log.length > 0 && (
-        <div
-          ref={logRef}
-          style={{
-            ...panel,
-            maxHeight: 160,
-            overflowY: "auto",
-            fontFamily: "ui-monospace, monospace",
-            fontSize: 12.5,
-            color: "var(--muted)",
-          }}
-        >
-          {log.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
+        <div style={{ fontSize: 12, color: error ? "var(--bad)" : "var(--muted)", maxWidth: 320, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {error ?? (indexing ? status : status && !graphing ? status : "")}
         </div>
-      )}
+      </header>
 
-      {/* Diagram */}
-      {flow && (
-        <div style={{ marginTop: 20 }}>
-          <Diagram flow={flow} />
-        </div>
-      )}
+      {/* ── Split: graph left, chat/notes right ──────────────────────────── */}
+      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+        <section style={{ flex: 1.5, minWidth: 0, borderRight: "1px solid var(--border)", position: "relative" }}>
+          {flow ? <Diagram flow={flow} /> : <GraphEmpty />}
+        </section>
 
-      {/* Notes */}
-      <section style={panel}>
-        <strong style={{ fontSize: 15 }}>Notes &amp; understanding</strong>
-        <p style={{ color: "var(--muted)", fontSize: 12.5, margin: "4px 0 12px" }}>
-          Capture what you learn about <code>{project || "this repo"}</code>.
-          Saved notes are fed into chat as established context.
-        </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onAddNote();
-          }}
-          style={{ display: "flex", gap: 10, marginBottom: 12 }}
-        >
-          <input
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            placeholder="e.g. The gateway never holds the Gemini key — it's BYOK per request."
-            style={{ ...input, flex: 1 }}
-          />
-          <button type="submit" disabled={!noteText.trim()} style={btn(!noteText.trim())}>
-            Save
-          </button>
-        </form>
-        {notes.length === 0 ? (
-          <div style={{ color: "var(--muted)", fontSize: 13 }}>No notes yet.</div>
-        ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-            {notes.map((n) => (
-              <li
-                key={n.id}
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "flex-start",
-                  background: "#0e1218",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                  fontSize: 13.5,
-                }}
-              >
-                <span style={{ flex: 1, lineHeight: 1.45 }}>{n.text}</span>
-                <button
-                  onClick={() => onDeleteNote(n.id)}
-                  title="Delete note"
-                  style={{
-                    background: "transparent",
-                    color: "var(--muted)",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: 16,
-                    lineHeight: 1,
-                  }}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Chat */}
-      <section style={panel}>
-        <strong style={{ fontSize: 15 }}>Talk to the repo</strong>
-        <p style={{ color: "var(--muted)", fontSize: 12.5, margin: "4px 0 12px" }}>
-          Index the repo first, then ask about it. Answers are grounded in the
-          retrieved code.
-        </p>
-        <div
-          ref={chatRef}
-          style={{
-            maxHeight: 320,
-            overflowY: "auto",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-            marginBottom: 12,
-          }}
-        >
-          {messages.length === 0 && (
-            <div style={{ color: "var(--muted)", fontSize: 13 }}>
-              e.g. “How does routing work?” · “Where are vectors stored?”
-            </div>
-          )}
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              style={{
-                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                maxWidth: "85%",
-                background: m.role === "user" ? "var(--accent)" : "#0e1218",
-                color: m.role === "user" ? "#0b0d12" : "var(--text)",
-                border: m.role === "user" ? "none" : "1px solid var(--border)",
-                borderRadius: 10,
-                padding: "9px 13px",
-                fontSize: 13.5,
-                lineHeight: 1.5,
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {m.content || (chatting && i === messages.length - 1 ? "…" : "")}
-            </div>
-          ))}
-        </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onAsk();
-          }}
-          style={{ display: "flex", gap: 10 }}
-        >
-          <input
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder={apiKey ? "Ask about the codebase…" : "Enter your Gemini key above first"}
-            disabled={chatting || !apiKey}
-            style={{ ...input, flex: 1 }}
-          />
-          <button type="submit" disabled={chatting || !question.trim() || !apiKey} style={btn(chatting || !question.trim() || !apiKey)}>
-            {chatting ? "…" : "Ask"}
-          </button>
-        </form>
-      </section>
-    </main>
+        <aside style={{ width: 420, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--panel)", minHeight: 0 }}>
+          <div style={{ display: "flex", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+            <Tab active={tab === "chat"} onClick={() => setTab("chat")} icon={<MessageSquare size={14} />}>Chat</Tab>
+            <Tab active={tab === "notes"} onClick={() => setTab("notes")} icon={<NotebookPen size={14} />}>Notes</Tab>
+          </div>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            {tab === "chat" ? <Chat apiKey={apiKey} project={project} /> : <Notes project={project} />}
+          </div>
+        </aside>
+      </div>
+    </div>
   );
 }
 
-const panel: React.CSSProperties = {
-  marginTop: 20,
-  background: "var(--panel)",
-  border: "1px solid var(--border)",
-  borderRadius: 12,
-  padding: 20,
-};
-const lbl: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 6,
-  fontSize: 13,
-  color: "var(--muted)",
-};
-const input: React.CSSProperties = {
-  background: "#0e1218",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  padding: "9px 12px",
-  color: "var(--text)",
-  fontSize: 14,
+function GraphEmpty() {
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--faint)" }}>
+      <div style={{ textAlign: "center" }}>
+        <svg width="120" height="86" viewBox="0 0 120 86" fill="none" stroke="#d4d4d8" strokeWidth="1.5">
+          <rect x="44" y="6" width="32" height="20" rx="4" />
+          <rect x="8" y="58" width="32" height="20" rx="4" />
+          <rect x="80" y="58" width="32" height="20" rx="4" />
+          <path d="M56 26 L28 58 M64 26 L92 58" />
+        </svg>
+        <div style={{ marginTop: 16, fontSize: 13, color: "var(--muted)" }}>
+          Index a repo, then <strong style={{ color: "var(--text)" }}>Generate diagram</strong>.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 7,
+        background: "var(--bg)",
+        border: "1px solid var(--border-strong)",
+        borderRadius: 8,
+        padding: "0 10px",
+        height: 34,
+        color: "var(--muted)",
+      }}
+    >
+      {icon}
+      {children}
+    </div>
+  );
+}
+
+function Tab({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 7,
+        padding: "11px 0",
+        background: "transparent",
+        border: "none",
+        borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
+        color: active ? "var(--text)" : "var(--muted)",
+        fontSize: 13,
+        fontWeight: active ? 600 : 500,
+        cursor: "pointer",
+      }}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+const bareInput: React.CSSProperties = {
+  background: "transparent",
+  border: "none",
   outline: "none",
+  color: "var(--text)",
+  fontSize: 13,
+  fontFamily: "var(--font-sans)",
 };
-function btn(disabled: boolean): React.CSSProperties {
+const spin: React.CSSProperties = { animation: "spin 1s linear infinite" };
+
+function ghostBtn(disabled: boolean): React.CSSProperties {
   return {
-    background: disabled ? "#1b2230" : "var(--accent)",
-    color: disabled ? "var(--muted)" : "#0b0d12",
-    border: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    height: 34,
+    padding: "0 13px",
     borderRadius: 8,
-    padding: "10px 18px",
-    fontSize: 14,
+    border: "1px solid var(--border-strong)",
+    background: "var(--panel)",
+    color: disabled ? "var(--faint)" : "var(--text)",
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}
+function solidBtn(disabled: boolean): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    height: 34,
+    padding: "0 14px",
+    borderRadius: 8,
+    border: "none",
+    background: disabled ? "var(--hover)" : "var(--accent)",
+    color: disabled ? "var(--faint)" : "var(--accent-text)",
+    fontSize: 13,
     fontWeight: 600,
     cursor: disabled ? "not-allowed" : "pointer",
   };

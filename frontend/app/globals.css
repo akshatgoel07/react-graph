@@ -1,29 +1,183 @@
+/* react-graph — minimal monochrome theme (Heptabase-inspired, paper-white).
+   All colour lives in these variables; a dark variant is just a re-map. */
 :root {
-  --bg: #0b0d12;
-  --panel: #141821;
-  --border: #232a36;
-  --text: #e6e9ef;
-  --muted: #8b93a3;
-  --accent: #6ea8fe;
-  --ok: #3fb950;
-  --bad: #f85149;
+  --bg: #fafafa;
+  --panel: #ffffff;
+  --border: #ececec;
+  --border-strong: #d6d6d6;
+  --text: #18181b;
+  --muted: #8a8a92;
+  --faint: #b8b8be;
+  --accent: #18181b; /* near-black, the only "color" */
+  --accent-text: #ffffff;
+  --hover: #f3f3f4;
+  --code-bg: #f5f5f5;
+  --bad: #b42318;
+  --radius: 10px;
+  --topbar-h: 56px;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas,
+    monospace;
 }
 
 * {
   box-sizing: border-box;
 }
-
 html,
 body {
   margin: 0;
   padding: 0;
+  height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
-    Arial, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+code,
+pre {
+  font-family: var(--font-mono);
+}
+button {
+  font-family: inherit;
 }
 
-a {
-  color: var(--accent);
+/* ── React Flow: white Heptabase-like cards, hairline borders ─────────────── */
+.react-flow__node {
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(24, 24, 27, 0.05);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 10px 14px;
+}
+.react-flow__node.selected,
+.react-flow__node:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.react-flow__handle {
+  background: var(--faint);
+  border: none;
+  width: 6px;
+  height: 6px;
+}
+.react-flow__edge-path {
+  stroke: #c2c2c8;
+  stroke-width: 1.5;
+}
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke: #5b5b63;
+}
+.react-flow__edge-text {
+  fill: var(--muted);
+  font-size: 10px;
+}
+.react-flow__controls {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.react-flow__controls button {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.react-flow__controls button:hover {
+  background: var(--hover);
+}
+.react-flow__minimap {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.react-flow__attribution {
+  display: none;
+}
+
+/* ── Streaming caret ──────────────────────────────────────────────────────── */
+.caret::after {
+  content: "▍";
+  margin-left: 1px;
+  animation: blink 1s steps(1) infinite;
+  color: var(--muted);
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Markdown (chat answers) ──────────────────────────────────────────────── */
+.md > *:first-child {
+  margin-top: 0;
+}
+.md > *:last-child {
+  margin-bottom: 0;
+}
+.md p {
+  margin: 0 0 8px;
+  line-height: 1.6;
+}
+.md ul,
+.md ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.md li {
+  margin: 2px 0;
+}
+.md h1,
+.md h2,
+.md h3 {
+  margin: 12px 0 6px;
+  font-size: 14.5px;
+  font-weight: 650;
+}
+.md a {
+  color: var(--text);
+  text-decoration: underline;
+}
+.md code {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+}
+.md pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  overflow: auto;
+  margin: 0 0 8px;
+}
+.md pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #e3e3e6;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d4d4d8;
 }
